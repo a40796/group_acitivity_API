@@ -26,37 +26,75 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const eventData = req.body.event;
-    console.log('eventData',eventData)
     if (!eventData) {
       return 
     }
-    await firebaseDb.ref('events/' + req.session.uid).set(req.body.event);
-    const snapshot = await firebaseDb.ref('events/' + req.session.uid).once('value');
+
+    const settedEvent = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
+
+    if(settedEvent.val().length >= 10){
+      res.status(411).send({errorMsg:'initiate event limit 10.'})
+      return 
+    }
+    
+    let updatedEvents;
+
+    if (settedEvent.exists()) {
+      updatedEvents = [...settedEvent.val(), eventData];
+    } else {
+      updatedEvents = [eventData];
+    }
+
+    await firebaseDb.ref(`events/${req.session.uid}`).set(updatedEvents);
+
+    const snapshot = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
     const userData = snapshot.val();
     const msg = 'Event Created Successfully';
+
     res.status(200).json({ msg, userData });
   } catch (error) {
     console.error('Error updating user account:', error);
-    res.status(500).send('Error updating user account');
+    res.status(500).send('Error updating user event');
   }
 });
+
+router.put('/:id', async(req, res)=>{
+    try{
+      const updatedUuid = req.params.id;
+      const updatedEventData = req.body.event;
+
+      if(!updatedUuid || !updatedEventData){
+        return res.status(400).send('can not update event');
+      }
+
+      const snapshot = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
+      const events = snapshot.val();
+
+      if (events && events) {
+        const updatedEventIndex = events.findIndex(event => event.uuid === updatedUuid);
+  
+        if (updatedEventIndex !== -1) {
+          events[updatedEventIndex] = updatedEventData
+
+          await firebaseDb.ref(`events/${req.session.uid}`).set(events);
+  
+          res.status(200).json({ msg: 'Event updated successfully', data : updatedEventData });
+        } else {
+          res.status(404).send('Event not found');
+        }
+      } else {
+        res.status(404).send('No events found');
+      }
+  
+    }catch(error){
+      res.status(500).send('Error updating user event');
+    }
+})
 
 router.post('/uploadImage', upload.array('images'), async (req, res) => {
   try {
     const files = req.files;
-    const descs = req.body.descs;
-    const urls = req.body.urls;
-    console.log('files', files);
-    console.log('descs', descs);
-
-    const eventRef = firebaseDb.ref(`events/${req.session.uid}`);
-    const eventSnapshot = await eventRef.once('value');
-    const existingData = eventSnapshot.val() || {}; // Check if data exists
-
-    const existingPhotoUrls = existingData.photoUrls || [];
-    const existingPhotoDescs = existingData.photoDescs || [];
-    if (files && descs && files.length > 0 && descs.length > 0) {
-      const newDeses = descs.slice(existingPhotoUrls.length)
+    if(files && files.length > 0 ){
       const promises = files.map(async (file, index) => {
         const path = `eventImage/${file.originalname}`;
 
@@ -67,40 +105,14 @@ router.post('/uploadImage', upload.array('images'), async (req, res) => {
           action: 'read',
           expires: '2099-12-31',
         });
-
-        return { url: downloadUrl[0], desc: newDeses[index] };
+        return { url: downloadUrl[0] };
       });
-
-      const results = await Promise.all(promises);
-      console.log('promise results', results)
-      const newPhotoUrls = results.map(result => result.url);
-      const newPhotoDescs = results.map(result => result.desc);
-
-      // Combine existing images with newly uploaded images
-      const allPhotoUrls = [...existingPhotoUrls, ...newPhotoUrls];
-      const allPhotoDescs = [...existingPhotoDescs, ...newPhotoDescs];
-
-      await eventRef.update({ photoUrls: allPhotoUrls, photoDescs: allPhotoDescs });
-
-      res.status(200).json({
-        msg: 'event photos and descriptions updated successfully',
-        urls: allPhotoUrls,
-        descs: allPhotoDescs,
-      });
-    } else if (!files || files.length === 0) {
-      if (descs && descs.length > 0 && existingPhotoDescs.length === descs.length) {
-        const updateDesc = await eventRef.update({ photoDescs: descs });
-        res.status(200).json({ msg: 'event descriptions updated successfully', descs: updateDesc });
-      }else if(descs && descs.length > 0 && existingPhotoDescs.length !== descs.length){
-        const updateDesc = await eventRef.update({ photoDescs: descs,  photoUrls:urls});
-        res.status(200).json({ msg: 'event descriptions updated successfully', descs: updateDesc });
-      } else {
-        res.status(400).send('No files uploaded.');
-      }
+      const uploadResults =  await Promise.all(promises);
+      const uploadedImageArr = uploadResults.map((item) => item.url)
+      res.status(200).json(uploadedImageArr);
     }
 
   } catch (error) {
-    console.error('Error handling image upload:', error);
     res.status(500).send('Error handling image upload');
   }
 });
