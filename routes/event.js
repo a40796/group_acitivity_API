@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     res.status(200).json(userData);
   } catch (error) {
     console.error('Error fetching user data:', error);
-    res.status(500).send('Error fetching user data');
+    res.status(500).send({errorMsg:'Error fetching user data'});
   }
 });
 
@@ -54,7 +54,7 @@ router.post('/', async (req, res) => {
     res.status(200).json({ msg, userData });
   } catch (error) {
     console.error('Error updating user account:', error);
-    res.status(500).send('Error updating user event');
+    res.status(500).send({errorMsg:'Error updating user event'});
   }
 });
 
@@ -80,16 +80,47 @@ router.put('/:id', async(req, res)=>{
   
           res.status(200).json({ msg: 'Event updated successfully', data : updatedEventData });
         } else {
-          res.status(404).send('Event not found');
+          res.status(404).send({errorMsg:'Event not found'});
         }
       } else {
-        res.status(404).send('No events found');
+        res.status(404).send({errorMsg:'No events found'});
       }
   
     }catch(error){
-      res.status(500).send('Error updating user event');
+      res.status(500).send({errorMsg:'Error updating user event'});
     }
 })
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const eventIdToDelete = req.params.id;
+
+    if (!eventIdToDelete) {
+      return res.status(400).send({errorMsg:'Event ID is required for deletion'});
+    }
+
+    const snapshot = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
+    const events = snapshot.val();
+
+    if (events && events.length > 0) {
+      const eventIndexToDelete = events.findIndex(event => event.uuid === eventIdToDelete);
+      const deleteEvent = events[eventIndexToDelete].eventName
+      if (eventIndexToDelete !== -1) {
+        events.splice(eventIndexToDelete, 1);
+
+        await firebaseDb.ref(`events/${req.session.uid}`).set(events);
+        res.status(200).json({ msg: `${deleteEvent} Event deleted successfully` });
+      } else {
+        res.status(404).send({errorMsg:'Event not found'});
+      }
+    } else {
+      res.status(404).send({errorMsg: 'No events found'});
+    }
+  } catch (error) {
+    console.error('Error deleting event:', error);
+    res.status(500).send({errorMsg:'Error deleting event'});
+  }
+});
 
 router.post('/uploadImage', upload.array('images'), async (req, res) => {
   try {
@@ -113,7 +144,7 @@ router.post('/uploadImage', upload.array('images'), async (req, res) => {
     }
 
   } catch (error) {
-    res.status(500).send('Error handling image upload');
+    res.status(500).send({errorMsg:'Error handling image upload'});
   }
 });
 
