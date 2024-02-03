@@ -31,8 +31,7 @@ router.post('/', async (req, res) => {
     }
 
     const settedEvent = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
-
-    if(settedEvent.val().length >= 10){
+    if(settedEvent.val() && settedEvent.val().length >= 10){
       res.status(411).send({errorMsg:'initiate event limit 10.'})
       return 
     }

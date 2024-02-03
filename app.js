@@ -13,6 +13,7 @@ const loginRouter = require('./routes/login');
 const accountRouter = require('./routes/account');
 const logoutRouter = require('./routes/logout');
 const eventRouter = require('./routes/event')
+const allEventRouter = require('./routes/allEvents')
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -42,6 +43,7 @@ app.use('/logout', logoutRouter);
 
 app.use('/account',ensureLoggedIn, accountRouter);
 app.use('/events',ensureLoggedIn, eventRouter);
+app.use('/allEvents',ensureLoggedIn, allEventRouter);
 app.use(function(req, res, next) {
   next(createError(404));
 });
