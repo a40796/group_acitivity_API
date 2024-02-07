@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
     })
 
     // 分頁邏輯
-    const page = req.query.page || 1; // 從請求的查詢參數中獲取當前頁碼
+    const page = req.query.page || 1;
     const startIndex = (page - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     const paginatedEvents = eventsArray.slice(startIndex, endIndex);

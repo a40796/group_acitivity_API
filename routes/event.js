@@ -26,13 +26,17 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const eventData = req.body.event;
+
     if (!eventData) {
       return 
     }
 
+    eventData.userId = req.session.uid;
+    eventData.userName = await (await firebaseDb.ref(`users/${req.session.uid}`).once('value')).val().name
+
     const settedEvent = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
     if(settedEvent.val() && settedEvent.val().length >= 10){
-      res.status(411).send({errorMsg:'initiate event limit 10.'})
+      res.status(411).send({errorMsg:'initiate event lsimit 10.'})
       return 
     }
     
@@ -46,7 +50,7 @@ router.post('/', async (req, res) => {
 
     await firebaseDb.ref(`events/${req.session.uid}`).set(updatedEvents);
 
-    const snapshot = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
+    const snapshot = await firebaseDb.ref(`users/${req.session.uid}`).once('value');
     const userData = snapshot.val();
     const msg = 'Event Created Successfully';
 
@@ -65,6 +69,9 @@ router.put('/:id', async(req, res)=>{
       if(!updatedUuid || !updatedEventData){
         return res.status(400).send('can not update event');
       }
+
+      updatedEventData.userId = req.session.uid;
+      updatedEventData.userName = await (await firebaseDb.ref(`users/${req.session.uid}`).once('value')).val().name
 
       const snapshot = await firebaseDb.ref(`events/${req.session.uid}`).once('value');
       const events = snapshot.val();
