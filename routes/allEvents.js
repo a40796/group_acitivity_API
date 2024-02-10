@@ -51,4 +51,69 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.put('/:id', async (req, res) => {
+  try {
+    const updatedUuid = req.params.id;
+    const updatedEventData = req.body.event;
+
+    if (!updatedUuid || !updatedEventData) {
+      return res.status(400).send('Cannot update event');
+    }
+
+    const eventsSnapshot = await firebaseDb.ref(`events/${updatedUuid}`).once('value');
+    const events = eventsSnapshot.val();
+
+    if (!events) {
+      return res.status(404).send({ errorMsg: 'No events found' });
+    }
+
+    const updatedEventIndex = events.findIndex(event => event.uuid === updatedEventData.uuid);
+    if (updatedEventIndex === -1) {
+      return res.status(404).send({ errorMsg: 'Event not found' });
+    }
+
+    if (!events[updatedEventIndex].joinUserId) {
+      events[updatedEventIndex].joinUserId = [];
+    }
+
+    const hasSameJoinUser = events[updatedEventIndex].joinUserId.some(item => {
+      return Object.keys(item)[0] === Object.keys(updatedEventData.joinUserId)[0];
+    });
+
+    if (hasSameJoinUser) {
+      return res.status(411).send({ errorMsg: 'Each individual can only sign up for one event.' });
+    }
+
+    events[updatedEventIndex].joinUserId.push(updatedEventData.joinUserId);
+
+    const calcJoinNumbers = events[updatedEventIndex].joinUserId.reduce((acc, curr) => {
+      const value = Number(Object.values(curr)[0]);
+      return acc + (isNaN(value) ? 0 : value);
+    }, 0);
+
+    if (calcJoinNumbers >= parseInt(events[updatedEventIndex].selectNum)) {
+      return res.status(411).send({ errorMsg: `Event limit ${events[updatedEventIndex].selectNum}, Event Full.` });
+    }
+
+    const usersSnapshot = await firebaseDb.ref(`users/${req.session.uid}`).once('value');
+    const user = usersSnapshot.val();
+
+    if (!user.events) {
+      user.events = [];
+    }
+
+    user.events.push({ [updatedEventData.uuid]: Object.values(updatedEventData.joinUserId)[0] });
+
+    await Promise.all([
+      firebaseDb.ref(`users/${req.session.uid}`).set(user),
+      firebaseDb.ref(`events/${updatedUuid}`).set(events)
+    ]);
+
+    res.status(200).json({ msg: `Joined ${updatedEventData.eventName} successfully`, data: events[updatedEventIndex] });
+  } catch (error) {
+    res.status(500).send({ errorMsg: 'Error updating user event' });
+  }
+});
+
+
 module.exports = router;
