@@ -57,7 +57,7 @@ router.post('/uploadImage', upload.single('image'), async (req, res) => {
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
 
-    await userRef.update({ photoUrl: downloadUrl });
+    await userRef.update({ photo: downloadUrl });
 
     res.status(200).json({ msg: 'user photo updated successfully', url: downloadUrl });
   } catch (error) {

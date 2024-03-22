@@ -43,7 +43,7 @@ app.use('/logout', logoutRouter);
 
 app.use('/account',ensureLoggedIn, accountRouter);
 app.use('/events',ensureLoggedIn, eventRouter);
-app.use('/allEvents',ensureLoggedIn, allEventRouter);
+app.use('/allEvents',allEventRouter);
 app.use(function(req, res, next) {
   next(createError(404));
 });

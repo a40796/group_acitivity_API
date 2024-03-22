@@ -11,39 +11,75 @@ const upload = multer({
 });
 const bucket = fireBase.storage().bucket();
 
-const ITEMS_PER_PAGE = 12; // 每頁顯示的項目數
 
+const ITEMS_PER_PAGE = 12; 
 router.get('/', async (req, res) => {
-  try {
-    const snapshot = await firebaseDb.ref('events/').once('value');
-    const eventsData = snapshot.val();
+  try {  
+    let snapshot = await firebaseDb.ref('events/').once('value');
+    let eventsData = snapshot.val();
+
+    function calcEventStatus(event){
+      const today = new Date().getTime()
+      const start = new Date(event.meetingTime).getTime()
+      const end = new Date(event.endTime).getTime()
+      if(today > end){
+        return 'expired'
+      }else if(today < start){
+        return 'open'
+      }else{
+        return 'ing'
+      }
+    }
+
+    for(let k in eventsData){
+      const eventsDataWithExpired = eventsData[k].map((item)=>{
+        return {
+          ...item,
+          eventStatus:calcEventStatus(item)
+        }
+      })
+      firebaseDb.ref('events/' + k).set(eventsDataWithExpired)
+    }
+
+    snapshot = await firebaseDb.ref('events/').once('value');
+    eventsData = snapshot.val();
 
     let eventsArray = Object.values(eventsData || []);
-
-
-    console.log('eventsArray', eventsArray)
 
     if (eventsArray.length !== 0) {
       eventsArray = eventsArray.flat();
     }
 
-    eventsArray = eventsArray.sort((a, b) => {
-      const startTimeA = new Date(a.startTime);
-      const startTimeB = new Date(b.startTime);
-      return startTimeA - startTimeB;
-    })
+    eventsArray = eventsArray.filter((item) => item.eventStatus !== 'expired').sort((a, b) => new Date(a.meetingTime) - new Date(b.meetingTime))
 
-    // 分頁邏輯
+    if (!req.query.page && !req.query.id) {
+      res.status(200).json({
+        totalItems: eventsArray.length,
+        allEvents: eventsArray,
+      });
+      return;
+    }
+
+    if (!req.query.page && req.query.id) {
+      const event = eventsArray.find(event => req.query.id === event.uuid);
+      res.status(200).json({
+        event: event,
+      });
+      return;
+    }
+
     const page = req.query.page || 1;
     const startIndex = (page - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    const paginatedEvents = eventsArray.slice(startIndex, endIndex);
+    const paginatedEvents = eventsArray.slice(startIndex, endIndex)
 
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存一小时
     res.status(200).json({
       totalItems: eventsArray.length,
       currentPage: page,
       itemsPerPage: ITEMS_PER_PAGE,
       events: paginatedEvents,
+      allEvents: eventsArray,
     });
   } catch (error) {
     console.error('Error fetching events data:', error);
@@ -91,7 +127,7 @@ router.put('/:id', async (req, res) => {
       return acc + (isNaN(value) ? 0 : value);
     }, 0);
 
-    if (calcJoinNumbers >= parseInt(events[updatedEventIndex].selectNum)) {
+    if (calcJoinNumbers > parseInt(events[updatedEventIndex].selectNum)) {
       return res.status(411).send({ errorMsg: `Event limit ${events[updatedEventIndex].selectNum}, Event Full.` });
     }
 
