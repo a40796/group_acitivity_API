@@ -72,7 +72,7 @@ router.post('/uploadImage', upload.single('image'), async (req, res) => {
     
         const userRef = firebaseDb.ref(`users/${req.session.uid}`);
         const userSnapshot = await userRef.once('value');
-        const userData = userSnapshot.val();
+        
     
         await userRef.update({ photo: downloadUrl });
     
